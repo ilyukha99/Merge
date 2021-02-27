@@ -31,6 +31,16 @@ public class Worker {
         Path outputFile = files.get(0);
         files.remove(0);
 
+        if (files.size() == 1) {
+            Scanner scanner = new Scanner(files.get(0));
+            if (scanner.hasNext()) {
+                BufferedWriter writer = Files.newBufferedWriter(outputFile);
+                writeToEnd(writer, scanner, converter.apply(scanner.nextLine()),
+                        comparator, converter);
+            }
+            return;
+        }
+
         ArrayList<Path> newFiles = new ArrayList<>(), tmp;
         int size;
         while (files.size() != 1) {
@@ -67,21 +77,27 @@ public class Worker {
         Scanner scanner1 = FileWorker.getScanner(file1);
         Scanner scanner2 = FileWorker.getScanner(file2);
 
-        if (!(scanner1.hasNext() || scanner2.hasNext()) || (scanner1.hasNext() && !scanner2.hasNext())) {
+        if (!scanner1.hasNext() && !scanner2.hasNext()) {
             scanner1.close();
             scanner2.close();
             return file1;
         }
 
-        if (!scanner1.hasNext()) {
-            scanner1.close();
-            scanner2.close();
-            return file2;
-        }
-
         Path outputFilePath = FileWorker.createFile("temp" + index++ + ".txt");
         createdFiles.add(outputFilePath);
         BufferedWriter writer = FileWorker.getWriter(outputFilePath);
+
+        if (scanner1.hasNext() && !scanner2.hasNext()) {
+            scanner2.close();
+            writeToEnd(writer, scanner1, converter.apply(scanner1.nextLine()), comparator, converter);
+            return outputFilePath;
+        }
+
+        if (!scanner1.hasNext()) {
+            scanner1.close();
+            writeToEnd(writer, scanner2, converter.apply(scanner2.nextLine()), comparator, converter);
+            return file2;
+        }
 
         T lastVal;
         T val1 = converter.apply(scanner1.nextLine());
@@ -91,22 +107,20 @@ public class Worker {
                 writer.write(val2.toString());
                 lastVal = val2;
                 val2 = converter.apply(scanner2.nextLine());
-                if (comparator.compare(lastVal, val2) * flag > 0) { //file2 content is not sorted
+                if (comparator.compare(lastVal, val2) * flag > 0) { //file2's content is not sorted
                     scanner2.close();
+                    writer.newLine();
                     writeToEnd(writer, scanner1, val1, comparator, converter);
-                    writer.close();
-                    scanner1.close();
                     return outputFilePath;
                 }
             } else {
                 writer.write(val1.toString());
                 lastVal = val1;
                 val1 = converter.apply(scanner1.nextLine());
-                if (comparator.compare(lastVal, val1) * flag > 0) { //file1 content is not sorted
+                if (comparator.compare(lastVal, val1) * flag > 0) { //file1's content is not sorted
+                    writer.newLine();
                     scanner1.close();
                     writeToEnd(writer, scanner2, val2, comparator, converter);
-                    writer.close();
-                    scanner2.close();
                     return outputFilePath;
                 }
             }
@@ -129,10 +143,12 @@ public class Worker {
 
     private <T> void finishMerge(Scanner scanner, BufferedWriter writer, T cur, T other, int flag,
                                  Comparator<T> comparator, Function<String, T> converter) throws IOException {
+
         T lastVal;
         while (scanner.hasNextLine()) {
             if (comparator.compare(cur, other) * flag > 0) {
                 writer.write(other.toString());
+                writer.newLine();
                 writeToEnd(writer, scanner, cur, comparator, converter);
                 return;
             }
@@ -141,7 +157,7 @@ public class Worker {
                 writer.newLine();
                 lastVal = cur;
                 cur = converter.apply(scanner.nextLine());
-                if (comparator.compare(lastVal, cur) * flag > 0) { //file content is not sorted
+                if (comparator.compare(lastVal, cur) * flag > 0) { //file's content is not sorted
                     writer.write(other.toString());
                     return;
                 }
@@ -162,17 +178,20 @@ public class Worker {
     private <T> void writeToEnd(BufferedWriter writer, Scanner scanner, T val, Comparator<T> comparator,
                                 Function<String, T> converter) throws IOException {
 
-        writer.newLine();
         writer.write(val.toString());
         T lastVal;
         while (scanner.hasNext()) {
-            writer.newLine();
             lastVal = val;
             val = converter.apply(scanner.nextLine());
-            if (comparator.compare(lastVal, val) * flag > 0) { //file content is not sorted
+            if (comparator.compare(lastVal, val) * flag > 0) { //file's content is not sorted
+                scanner.close();
+                writer.close();
                 return;
             }
+            writer.newLine();
             writer.write(val.toString());
         }
+        scanner.close();
+        writer.close();
     }
 }
